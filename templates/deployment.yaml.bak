@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "backend.fullname" . }}
+  labels:
+{{ include "backend.labels" . | indent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "backend.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "backend.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: {{ .Values.image.registry }}/{{ include "backend.fullname" . }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+            - name: jvm
+              containerPort: 6060
+              protocol: TCP
+            - name: debug                                                                                                    
+              containerPort: 8000                                                                                          
+              protocol: TCP
+          volumeMounts:
+            - name: jvm
+              mountPath: /jvm_monitor
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          command:
+            - java
+          args:
+          - -Dapp.name={{ include "backend.fullname" . }}
+          {{- range $arg := .Values.args }}
+          - {{ $arg }}
+          {{- end }}
+      volumes:
+        - name: jvm
+          nfs:
+            path: /home/k8s-nfs/project/ey/jvm_monitor
+            server: 192.168.1.33
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
